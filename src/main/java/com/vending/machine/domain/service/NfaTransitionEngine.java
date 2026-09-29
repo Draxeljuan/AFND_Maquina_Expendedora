@@ -13,7 +13,6 @@ public class NfaTransitionEngine implements ProcessSequenceUseCase {
     public AutomatonResult process(String sequence) {
         if (sequence == null) sequence = "";
 
-        // Validar el alfabeto primero
         List<Symbol> symbols = new ArrayList<>();
         for (char c : sequence.toCharArray()) {
             Optional<Symbol> symbolOpt = Symbol.fromChar(c);
@@ -23,22 +22,20 @@ public class NfaTransitionEngine implements ProcessSequenceUseCase {
             symbols.add(symbolOpt.get());
         }
 
-        // Estado Inicial: Partimos de q0 y aplicamos la clausura lambda inicial
+        // Clausura lambda inicial desde el estado de reposo
         Set<NfaState> currentStates = epsilonClosure(Set.of(NfaState.Q0));
 
-        // Procesar cada símbolo de la cadena
+        // Transiciones consumiendo la cadena
         for (Symbol symbol : symbols) {
             Set<NfaState> nextStates = new HashSet<>();
 
-            // Evaluamos la transición para cada uno de los estados activos simultáneamente
             for (NfaState state : currentStates) {
                 nextStates.addAll(delta(state, symbol));
             }
 
-            // Tras consumir el símbolo, aplicamos transiciones vacías automáticas
+            // Aplicar saltos lambda automáticos descubiertos tras consumir el símbolo
             currentStates = epsilonClosure(nextStates);
 
-            // Si en algún punto el conjunto queda vacío, los caminos murieron
             if (currentStates.isEmpty()) {
                 break;
             }
@@ -47,10 +44,6 @@ public class NfaTransitionEngine implements ProcessSequenceUseCase {
         return AutomatonResult.processed(currentStates);
     }
 
-    /**
-     * Calcula la Clausura Lambda (ε-closure).
-     * Encuentra todos los estados alcanzables sin consumir ningún símbolo de entrada.
-     */
     private Set<NfaState> epsilonClosure(Set<NfaState> states) {
         Set<NfaState> closure = new HashSet<>(states);
         Queue<NfaState> queue = new LinkedList<>(states);
@@ -60,7 +53,7 @@ public class NfaTransitionEngine implements ProcessSequenceUseCase {
             Set<NfaState> epsilonTransitions = delta(state, Symbol.LAMBDA);
 
             for (NfaState nextState : epsilonTransitions) {
-                if (closure.add(nextState)) { // Si es un estado nuevo descubierto
+                if (closure.add(nextState)) {
                     queue.add(nextState);
                 }
             }
@@ -69,59 +62,84 @@ public class NfaTransitionEngine implements ProcessSequenceUseCase {
     }
 
     /**
-     * Función de Transición No Determinista δ(q, σ)
-     * Retorna un CONJUNTO de estados resultantes.
+     * Función de Transición No Determinista δ(q, σ) mapeada para 15 productos
      */
     private Set<NfaState> delta(NfaState state, Symbol symbol) {
         return switch (state) {
             case Q0 -> switch (symbol) {
-                case ZERO -> Set.of(NfaState.Q0); // Bucle de reinicio
-                case LAMBDA -> Set.of(NfaState.Q_START); // Salto para evaluación
+                case ZERO -> Set.of(NfaState.Q0);       // Bucle Reset[cite: 5]
+                case LAMBDA -> Set.of(NfaState.Q_START); // Salto a evaluación[cite: 5]
                 default -> Set.of();
             };
+
+            // Nivel 1: No Determinismo Explícito (Exploración simultánea)[cite: 5]
             case Q_START -> switch (symbol) {
-                case ONE -> Set.of(NfaState.Q1);
-                case TWO -> Set.of(NfaState.Q2);
-                case FIVE -> Set.of(NfaState.Q5);
+                case ONE -> Set.of(NfaState.Q1, NfaState.Q2);
+                case TWO -> Set.of(NfaState.Q3, NfaState.Q4);
+                case FIVE -> Set.of(NfaState.Q5, NfaState.Q6);
                 default -> Set.of();
             };
-            // Desglose Rama '1'
+
+            // Ramas '1'[cite: 5]
             case Q1 -> switch (symbol) {
-                case ONE -> Set.of(NfaState.Q11);
+                case ONE -> Set.of(NfaState.P1);
                 case TWO -> Set.of(NfaState.P2);
-                case FIVE -> Set.of(NfaState.P3);
                 default -> Set.of();
             };
-            case Q11 -> switch (symbol) {
-                case LAMBDA -> Set.of(NfaState.P1); // Secuencia corta '11'
-                case FIVE -> Set.of(NfaState.P4);   // Secuencia larga '115'
-                default -> Set.of();
-            };
-            // Desglose Rama '2'
             case Q2 -> switch (symbol) {
-                case ONE -> Set.of(NfaState.Q21);
-                case TWO -> Set.of(NfaState.P6);
-                case FIVE -> Set.of(NfaState.P7);
+                case FIVE -> Set.of(NfaState.Q2A);
                 default -> Set.of();
             };
-            case Q21 -> switch (symbol) {
-                case LAMBDA -> Set.of(NfaState.P5);
+            case Q2A -> switch (symbol) {
+                case LAMBDA -> Set.of(NfaState.P13); // Aceptación temprana de '15'[cite: 5]
+                case FIVE -> Set.of(NfaState.P3);
+                case ONE -> Set.of(NfaState.P4);
+                default -> Set.of();
+            };
+
+            // Ramas '2'[cite: 5]
+            case Q3 -> switch (symbol) {
+                case ONE -> Set.of(NfaState.Q3A);
+                default -> Set.of();
+            };
+            case Q3A -> switch (symbol) {
+                case LAMBDA -> Set.of(NfaState.P5);  // Aceptación temprana de '21'[cite: 5]
+                case FIVE -> Set.of(NfaState.P6);
+                default -> Set.of();
+            };
+            case Q4 -> switch (symbol) {
+                case TWO -> Set.of(NfaState.P7);
+                case FIVE -> Set.of(NfaState.Q4A);
+                default -> Set.of();
+            };
+            case Q4A -> switch (symbol) {
+                case LAMBDA -> Set.of(NfaState.P14); // Aceptación temprana de '25'[cite: 5]
                 case FIVE -> Set.of(NfaState.P8);
                 default -> Set.of();
             };
-            // Desglose Rama '5'
+
+            // Ramas '5'[cite: 5]
             case Q5 -> switch (symbol) {
-                case ONE -> Set.of(NfaState.P9);
-                case TWO -> Set.of(NfaState.P10);
-                case FIVE -> Set.of(NfaState.Q55);
+                case FIVE -> Set.of(NfaState.Q5A);
                 default -> Set.of();
             };
-            case Q55 -> switch (symbol) {
-                case LAMBDA -> Set.of(NfaState.P11);
-                case FIVE -> Set.of(NfaState.P12);
+            case Q5A -> switch (symbol) {
+                case LAMBDA -> Set.of(NfaState.P15); // Aceptación temprana de '55'[cite: 5]
+                case FIVE -> Set.of(NfaState.P9);
+                case ONE -> Set.of(NfaState.P10);
                 default -> Set.of();
             };
-            // Los estados finales P1-P12 no tienen transiciones salientes en este modelo
+            case Q6 -> switch (symbol) {
+                case ONE -> Set.of(NfaState.Q6A);
+                case TWO -> Set.of(NfaState.P12);
+                default -> Set.of();
+            };
+            case Q6A -> switch (symbol) {
+                case FIVE -> Set.of(NfaState.P11);
+                default -> Set.of();
+            };
+
+            // Estados finales P1-P15 mueren si reciben más símbolos
             default -> Set.of();
         };
     }

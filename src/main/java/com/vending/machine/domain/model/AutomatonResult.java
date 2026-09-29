@@ -17,7 +17,7 @@ public record AutomatonResult(
     }
 
     public static AutomatonResult processed(Set<NfaState> finalStates) {
-        // En un AFND, la cadena es aceptada si al menos un estado activo final es de aceptación.
+        // En AFND, se acepta si la intersección de estados activos y F no es vacía
         NfaState slot = finalStates.stream()
                 .filter(NfaState::isAcceptance)
                 .findFirst()
@@ -25,8 +25,8 @@ public record AutomatonResult(
 
         boolean accepted = (slot != null);
         String msg = accepted
-                ? "Cadena ACEPTADA. Se alcanzó el " + slot.name()
-                : "Cadena RECHAZADA. Los caminos murieron o no alcanzaron un estado final.";
+                ? "Cadena ACEPTADA. Se alcanzó el Slot " + slot.name()
+                : "Cadena RECHAZADA. Los caminos murieron o son insuficientes para un Slot válido.";
 
         return new AutomatonResult(finalStates, true, accepted, slot, msg);
     }

@@ -7,7 +7,7 @@ public enum Symbol {
     ONE('1'),
     TWO('2'),
     FIVE('5'),
-    LAMBDA('L'); // L usado internamente para representar transiciones vacías (λ)
+    LAMBDA('L'); // Representa la transición vacía (λ)
 
     private final char character;
 

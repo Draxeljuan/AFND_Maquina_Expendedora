@@ -20,29 +20,33 @@ public class VendingMachineApp extends JFrame {
     private final MachinePanel machinePanel;
     private final GraphPanel graphPanel;
 
-    // Productos puros
+    // Productos ampliados a 15 para cubrir los nuevos slots
     private static final List<String> PRODUCT_POOL = Arrays.asList(
             "Agua", "Jugo", "Té", "Energizante",
             "Galletas", "Maní", "Papas", "Nachos",
-            "Chicle", "Chocolatina", "Gomitas", "Menta"
+            "Chicle", "Chocolatina", "Gomitas", "Menta",
+            "Chitos", "Barra Cereal", "Tostacos"
     );
 
     private static final String FONT = "SansSerif";
 
-    // Mapeo fijo del costo según la ruta del AFND
+    // Mapeo exacto de los 15 costos según las secuencias de la tabla
     private static final Map<NfaState, Integer> SLOT_PRICES = Map.ofEntries(
-            Map.entry(NfaState.P1, 2000),  // 1-1
-            Map.entry(NfaState.P2, 3000),  // 1-2
-            Map.entry(NfaState.P3, 1500),  // 1-5
-            Map.entry(NfaState.P4, 2500),  // 1-1-5
-            Map.entry(NfaState.P5, 3000),  // 2-1
-            Map.entry(NfaState.P6, 4000),  // 2-2
-            Map.entry(NfaState.P7, 2500),  // 2-5
-            Map.entry(NfaState.P8, 3500),  // 2-1-5
-            Map.entry(NfaState.P9, 1500),  // 5-1
-            Map.entry(NfaState.P10, 2500), // 5-2
-            Map.entry(NfaState.P11, 1000), // 5-5
-            Map.entry(NfaState.P12, 1500)  // 5-5-5
+            Map.entry(NfaState.P1, 2000),   // 11
+            Map.entry(NfaState.P2, 3000),   // 12
+            Map.entry(NfaState.P13, 1500),  // 15 (λ)
+            Map.entry(NfaState.P3, 2000),   // 155
+            Map.entry(NfaState.P4, 2500),   // 151
+            Map.entry(NfaState.P5, 3000),   // 21 (λ)
+            Map.entry(NfaState.P6, 3500),   // 215
+            Map.entry(NfaState.P7, 4000),   // 22
+            Map.entry(NfaState.P14, 2500),  // 25 (λ)
+            Map.entry(NfaState.P8, 3000),   // 255
+            Map.entry(NfaState.P15, 1000),  // 55 (λ)
+            Map.entry(NfaState.P9, 1500),   // 555
+            Map.entry(NfaState.P10, 2000),  // 551
+            Map.entry(NfaState.P11, 2000),  // 515
+            Map.entry(NfaState.P12, 2500)   // 52
     );
 
     private final Map<NfaState, String> slotAssignments = new EnumMap<>(NfaState.class);
@@ -52,12 +56,14 @@ public class VendingMachineApp extends JFrame {
     public VendingMachineApp() {
         try {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+            // Flujo normal sin LookAndFeel
+        }
 
         this.automatonService = new NfaTransitionEngine();
 
-        setTitle("AFND - Máquina Expendedora Aleatoria (12 Slots)");
-        setSize(1200, 800);
+        setTitle("AFND - Máquina Expendedora Aleatoria (15 Slots)");
+        setSize(1350, 880); // Ajustado para albergar el grafo extendido
         setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
         setLayout(new BorderLayout(15, 15));
@@ -213,10 +219,11 @@ public class VendingMachineApp extends JFrame {
     // --- PANEL DE LA MÁQUINA EXPENDEDORA ---
     private class MachinePanel extends JPanel {
         public MachinePanel() {
-            setBorder(BorderFactory.createTitledBorder(null, "Slots de la Máquina (Reorganización Aleatoria)",
+            setBorder(BorderFactory.createTitledBorder(null, "15 Slots de la Máquina (Reorganización Aleatoria)",
                     0, 0, new Font(FONT, Font.BOLD, 14)));
             setBackground(new Color(250, 250, 250));
-            setLayout(new GridLayout(4, 3, 10, 10));
+            // Matriz 5x3 para albergar los 15 slots cómodamente
+            setLayout(new GridLayout(5, 3, 10, 10));
         }
 
         @Override
@@ -232,15 +239,15 @@ public class VendingMachineApp extends JFrame {
                     slot.setBackground(isActive ? new Color(200, 255, 200) : Color.WHITE);
                     slot.setBorder(BorderFactory.createCompoundBorder(
                             BorderFactory.createLineBorder(isActive ? new Color(46, 204, 113) : new Color(200, 200, 200), isActive ? 3 : 1),
-                            BorderFactory.createEmptyBorder(10, 10, 10, 10)
+                            BorderFactory.createEmptyBorder(8, 8, 8, 8)
                     ));
 
                     JLabel idLabel = new JLabel(state.name() + " - $" + SLOT_PRICES.get(state), SwingConstants.CENTER);
-                    idLabel.setFont(new Font(FONT, Font.BOLD, 14));
+                    idLabel.setFont(new Font(FONT, Font.BOLD, 13));
                     idLabel.setForeground(new Color(80, 80, 80));
 
                     JLabel prodLabel = new JLabel(slotAssignments.get(state), SwingConstants.CENTER);
-                    prodLabel.setFont(new Font(FONT, Font.BOLD, 18));
+                    prodLabel.setFont(new Font(FONT, Font.BOLD, 16));
                     prodLabel.setForeground(isActive ? new Color(39, 174, 96) : Color.BLACK);
 
                     slot.add(idLabel, BorderLayout.NORTH);
@@ -257,46 +264,60 @@ public class VendingMachineApp extends JFrame {
         private final Map<NfaState, Point> nodes = new EnumMap<>(NfaState.class);
 
         public GraphPanel() {
-            setBorder(BorderFactory.createTitledBorder(null, "AFND - Grafo Dinámico de Transiciones",
+            setBorder(BorderFactory.createTitledBorder(null, "AFND - Grafo Dinámico de Transiciones (15 Cadenas)",
                     0, 0, new Font(FONT, Font.BOLD, 14)));
             setBackground(Color.WHITE);
         }
 
         private void calculateNodePositions() {
             nodes.clear();
-            int cx = getWidth() / 2; // Centro horizontal
 
-            // Centro vertical dinámico. Altura total estimada del árbol es 350px.
-            int startY = Math.max(40, (getHeight() - 350) / 2);
+            // Dividimos el ancho del panel en 16 franjas invisibles para distribuir los 15 productos finales sin colisiones
+            double stepX = getWidth() / 16.0;
+            int startY = Math.max(30, (getHeight() - 400) / 2); // Centrado vertical dinámico
 
-            nodes.put(NfaState.Q0, new Point(cx, startY));
-            nodes.put(NfaState.Q_START, new Point(cx, startY + 70));
+            // Posiciones Y fijas por niveles del árbol
+            int y0 = startY;
+            int y1 = startY + 60;
+            int y2 = startY + 130;
+            int y3 = startY + 210;
+            int y4 = startY + 300;
 
-            // Ramificaciones
-            nodes.put(NfaState.Q1, new Point(cx - 220, startY + 160));
-            nodes.put(NfaState.Q2, new Point(cx, startY + 160));
-            nodes.put(NfaState.Q5, new Point(cx + 220, startY + 160));
+            // Nivel 0 y 1 (Centrados geométricamente)
+            nodes.put(NfaState.Q0, new Point((int)(8 * stepX), y0));
+            nodes.put(NfaState.Q_START, new Point((int)(8 * stepX), y1));
 
-            // Rama 1
-            nodes.put(NfaState.Q11, new Point(cx - 290, startY + 250));
-            nodes.put(NfaState.P2, new Point(cx - 220, startY + 250));
-            nodes.put(NfaState.P3, new Point(cx - 150, startY + 250));
-            nodes.put(NfaState.P1, new Point(cx - 320, startY + 350));
-            nodes.put(NfaState.P4, new Point(cx - 250, startY + 350));
+            // Nivel 2: Ramificaciones base (Separadas por su peso de hojas)
+            nodes.put(NfaState.Q1, new Point((int)(1.5 * stepX), y2));
+            nodes.put(NfaState.Q2, new Point((int)(4.0 * stepX), y2));
+            nodes.put(NfaState.Q3, new Point((int)(6.5 * stepX), y2));
+            nodes.put(NfaState.Q4, new Point((int)(8.75 * stepX), y2));
+            nodes.put(NfaState.Q5, new Point((int)(12.0 * stepX), y2));
+            nodes.put(NfaState.Q6, new Point((int)(14.5 * stepX), y2));
 
-            // Rama 2
-            nodes.put(NfaState.Q21, new Point(cx - 70, startY + 250));
-            nodes.put(NfaState.P6, new Point(cx, startY + 250));
-            nodes.put(NfaState.P7, new Point(cx + 70, startY + 250));
-            nodes.put(NfaState.P5, new Point(cx - 100, startY + 350));
-            nodes.put(NfaState.P8, new Point(cx - 30, startY + 350));
+            // Nivel 3: Subnodos intermedios y Productos tempranos
+            nodes.put(NfaState.P1, new Point((int)(1 * stepX), y3));
+            nodes.put(NfaState.P2, new Point((int)(2 * stepX), y3));
+            nodes.put(NfaState.Q2A, new Point((int)(4 * stepX), y3));
+            nodes.put(NfaState.Q3A, new Point((int)(6.5 * stepX), y3));
+            nodes.put(NfaState.P7, new Point((int)(8 * stepX), y3));
+            nodes.put(NfaState.Q4A, new Point((int)(9.5 * stepX), y3));
+            nodes.put(NfaState.Q5A, new Point((int)(12 * stepX), y3));
+            nodes.put(NfaState.Q6A, new Point((int)(14 * stepX), y3));
+            nodes.put(NfaState.P12, new Point((int)(15 * stepX), y3));
 
-            // Rama 5
-            nodes.put(NfaState.P9, new Point(cx + 150, startY + 250));
-            nodes.put(NfaState.P10, new Point(cx + 220, startY + 250));
-            nodes.put(NfaState.Q55, new Point(cx + 290, startY + 250));
-            nodes.put(NfaState.P11, new Point(cx + 250, startY + 350));
-            nodes.put(NfaState.P12, new Point(cx + 320, startY + 350));
+            // Nivel 4: Productos finales
+            nodes.put(NfaState.P13, new Point((int)(3 * stepX), y4));
+            nodes.put(NfaState.P3, new Point((int)(4 * stepX), y4));
+            nodes.put(NfaState.P4, new Point((int)(5 * stepX), y4));
+            nodes.put(NfaState.P5, new Point((int)(6 * stepX), y4));
+            nodes.put(NfaState.P6, new Point((int)(7 * stepX), y4));
+            nodes.put(NfaState.P14, new Point((int)(9 * stepX), y4));
+            nodes.put(NfaState.P8, new Point((int)(10 * stepX), y4));
+            nodes.put(NfaState.P15, new Point((int)(11 * stepX), y4));
+            nodes.put(NfaState.P9, new Point((int)(12 * stepX), y4));
+            nodes.put(NfaState.P10, new Point((int)(13 * stepX), y4));
+            nodes.put(NfaState.P11, new Point((int)(14 * stepX), y4));
         }
 
         @Override
@@ -306,52 +327,64 @@ public class VendingMachineApp extends JFrame {
 
             Graphics2D g2 = (Graphics2D) g;
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
             g2.setColor(new Color(200, 200, 200));
-            g2.setStroke(new BasicStroke(2.5f));
+            g2.setStroke(new BasicStroke(2.0f));
 
+            // Trazado de Aristas según Idea Maquina Final.md
             drawEdge(g2, NfaState.Q0, NfaState.Q_START, "λ");
+
             drawEdge(g2, NfaState.Q_START, NfaState.Q1, "1");
-            drawEdge(g2, NfaState.Q_START, NfaState.Q2, "2");
+            drawEdge(g2, NfaState.Q_START, NfaState.Q2, "1");
+            drawEdge(g2, NfaState.Q_START, NfaState.Q3, "2");
+            drawEdge(g2, NfaState.Q_START, NfaState.Q4, "2");
             drawEdge(g2, NfaState.Q_START, NfaState.Q5, "5");
+            drawEdge(g2, NfaState.Q_START, NfaState.Q6, "5");
 
-            drawEdge(g2, NfaState.Q1, NfaState.Q11, "1");
+            // Ramas '1'
+            drawEdge(g2, NfaState.Q1, NfaState.P1, "1");
             drawEdge(g2, NfaState.Q1, NfaState.P2, "2");
-            drawEdge(g2, NfaState.Q1, NfaState.P3, "5");
-            drawEdge(g2, NfaState.Q11, NfaState.P1, "λ");
-            drawEdge(g2, NfaState.Q11, NfaState.P4, "5");
+            drawEdge(g2, NfaState.Q2, NfaState.Q2A, "5");
+            drawEdge(g2, NfaState.Q2A, NfaState.P13, "λ");
+            drawEdge(g2, NfaState.Q2A, NfaState.P3, "5");
+            drawEdge(g2, NfaState.Q2A, NfaState.P4, "1");
 
-            drawEdge(g2, NfaState.Q2, NfaState.Q21, "1");
-            drawEdge(g2, NfaState.Q2, NfaState.P6, "2");
-            drawEdge(g2, NfaState.Q2, NfaState.P7, "5");
-            drawEdge(g2, NfaState.Q21, NfaState.P5, "λ");
-            drawEdge(g2, NfaState.Q21, NfaState.P8, "5");
+            // Ramas '2'
+            drawEdge(g2, NfaState.Q3, NfaState.Q3A, "1");
+            drawEdge(g2, NfaState.Q3A, NfaState.P5, "λ");
+            drawEdge(g2, NfaState.Q3A, NfaState.P6, "5");
+            drawEdge(g2, NfaState.Q4, NfaState.P7, "2");
+            drawEdge(g2, NfaState.Q4, NfaState.Q4A, "5");
+            drawEdge(g2, NfaState.Q4A, NfaState.P14, "λ");
+            drawEdge(g2, NfaState.Q4A, NfaState.P8, "5");
 
-            drawEdge(g2, NfaState.Q5, NfaState.P9, "1");
-            drawEdge(g2, NfaState.Q5, NfaState.P10, "2");
-            drawEdge(g2, NfaState.Q5, NfaState.Q55, "5");
-            drawEdge(g2, NfaState.Q55, NfaState.P11, "λ");
-            drawEdge(g2, NfaState.Q55, NfaState.P12, "5");
+            // Ramas '5'
+            drawEdge(g2, NfaState.Q5, NfaState.Q5A, "5");
+            drawEdge(g2, NfaState.Q5A, NfaState.P15, "λ");
+            drawEdge(g2, NfaState.Q5A, NfaState.P9, "5");
+            drawEdge(g2, NfaState.Q5A, NfaState.P10, "1");
+            drawEdge(g2, NfaState.Q6, NfaState.Q6A, "1");
+            drawEdge(g2, NfaState.Q6A, NfaState.P11, "5");
+            drawEdge(g2, NfaState.Q6, NfaState.P12, "2");
 
-            // Bucle en Q0 ajustado al nuevo tamaño
+            // Bucle en Q0
             Point p0 = nodes.get(NfaState.Q0);
             g2.setColor(new Color(200, 200, 200));
-            g2.drawArc(p0.x - 20, p0.y - 45, 40, 40, 0, 180);
+            g2.drawArc(p0.x - 15, p0.y - 35, 30, 30, 0, 180);
             g2.setColor(Color.BLUE);
             g2.setFont(new Font(FONT, Font.BOLD, 12));
-            g2.drawString("0", p0.x - 4, p0.y - 48);
+            g2.drawString("0", p0.x - 4, p0.y - 38);
 
+            // Dibujar los Nodos
             for (Map.Entry<NfaState, Point> entry : nodes.entrySet()) {
                 NfaState state = entry.getKey();
                 Point p = entry.getValue();
                 boolean isActive = currentActiveStates.contains(state);
 
-                // Nodos más grandes
-                int size = isActive ? 48 : 42;
+                // Nodos ajustados en tamaño para caber los 28
+                int size = isActive ? 34 : 30;
                 int offset = size / 2;
 
                 Color targetColor = Color.WHITE;
-
                 if (isActive) {
                     targetColor = new Color(46, 204, 113);
                 } else if (state.isAcceptance()) {
@@ -364,12 +397,11 @@ public class VendingMachineApp extends JFrame {
                 g2.setColor(isActive ? new Color(39, 174, 96) : Color.GRAY);
                 g2.drawOval(p.x - offset, p.y - offset, size, size);
 
-                // Fuentes más legibles
                 g2.setColor(isActive ? Color.WHITE : Color.BLACK);
-                g2.setFont(new Font(FONT, isActive ? Font.BOLD : Font.PLAIN, isActive ? 14 : 13));
+                g2.setFont(new Font(FONT, isActive ? Font.BOLD : Font.PLAIN, 11));
                 FontMetrics fm = g2.getFontMetrics();
                 int textWidth = fm.stringWidth(state.name());
-                g2.drawString(state.name(), p.x - (textWidth / 2), p.y + 5);
+                g2.drawString(state.name(), p.x - (textWidth / 2), p.y + 4);
             }
         }
 
@@ -378,19 +410,17 @@ public class VendingMachineApp extends JFrame {
             Point p2 = nodes.get(s2);
             if (p1 != null && p2 != null) {
                 g2.setColor(new Color(200, 200, 200));
-                // Offset incrementado para que la línea no atraviese los nodos más grandes
-                g2.drawLine(p1.x, p1.y + 21, p2.x, p2.y - 21);
+                g2.drawLine(p1.x, p1.y + 15, p2.x, p2.y - 15);
 
                 int textX = (p1.x + p2.x) / 2;
                 int textY = (p1.y + p2.y) / 2;
 
-                // Círculo de fondo más amplio para la etiqueta de la línea
                 g2.setColor(Color.WHITE);
-                g2.fillOval(textX - 10, textY - 12, 20, 20);
+                g2.fillOval(textX - 8, textY - 10, 16, 16);
 
                 g2.setColor(Color.BLUE);
-                g2.setFont(new Font(FONT, Font.BOLD, 12));
-                g2.drawString(label, textX - 4, textY + 4);
+                g2.setFont(new Font(FONT, Font.BOLD, 10));
+                g2.drawString(label, textX - 3, textY + 3);
             }
         }
     }
